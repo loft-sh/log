@@ -13,7 +13,7 @@ import (
 var Discard = NewDiscardLogger(logrus.InfoLevel)
 
 type discardLogger struct {
-	m *sync.Mutex
+	m sync.Mutex
 
 	level logrus.Level
 }
@@ -141,7 +141,7 @@ func (f *discardLogger) WithLevel(level logrus.Level) Logger {
 	defer f.m.Unlock()
 
 	n := *f
-	n.m = &sync.Mutex{}
+	n.m = sync.Mutex{}
 	n.level = level
 	return &n
 }
