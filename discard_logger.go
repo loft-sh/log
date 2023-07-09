@@ -140,9 +140,10 @@ func (f *discardLogger) WithLevel(level logrus.Level) Logger {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	n := *f
-	n.m = sync.Mutex{}
-	n.level = level
+	n := discardLogger{
+		m:     sync.Mutex{},
+		level: level,
+	}
 	return &n
 }
 
