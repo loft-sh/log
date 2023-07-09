@@ -16,29 +16,95 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// NewLogger creates a new logr.Logger and sets it as configuration for other
+// global logger packages.
 func NewLogger(component string) (logr.Logger, error) {
 	path, _ := os.Getwd()
 	path = fmt.Sprintf("%s/", path)
 
-	// -- Variables --
-	development := os.Getenv("DEVELOPMENT") // true or false
-	loftDebug := os.Getenv("LOFTDEBUG")     // true or false
-
-	loftLogEncoding := os.Getenv("LOFT_LOG_ENCODING") // json or console
-	if loftLogEncoding == "" {
-		loftLogEncoding = "console"
-	}
-	if loftLogEncoding != "json" && loftLogEncoding != "console" {
-		return logr.Logger{}, fmt.Errorf("invalid log encoding: %s", loftLogEncoding)
+	loftLogEncoding, err := GetEncoding()
+	if err != nil {
+		return logr.Logger{}, fmt.Errorf("failed to get log encoding: %w", err)
 	}
 
-	logFullCallerPath := os.Getenv("LOFT_LOG_FULL_CALLER_PATH") // true or false
-	if logFullCallerPath == "" {
-		logFullCallerPath = "false"
-	} else if loftDebug == "true" {
-		logFullCallerPath = "true"
+	logFullCallerPath := LogFullCallerPath()
+
+	atomicLevel, kubernetesVerbosityLevel, err := GetLogLevel()
+	if err != nil {
+		return logr.Logger{}, fmt.Errorf("failed to get log level: %w", err)
 	}
 
+	// -- Config --
+	config := zap.NewProductionConfig()
+
+	if os.Getenv("DEVELOPMENT") == "true" {
+		config = zap.NewDevelopmentConfig()
+		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	}
+
+	// -- Set log encoding --
+	config.Encoding = loftLogEncoding
+
+	// -- Set log caller format --
+	if logFullCallerPath {
+		config.EncoderConfig.EncodeCaller = func(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
+			enc.AppendString(strings.TrimPrefix(caller.String(), path))
+		}
+	} else {
+		config.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	}
+
+	// -- Set log level --
+	config.Level = atomicLevel
+
+	// -- Build config --
+	zapLog, err := config.Build(zap.Fields(zap.String("component", component)))
+	if err != nil {
+		return logr.Logger{}, fmt.Errorf("failed to build zap logger: %w", err)
+	}
+
+	// Zap global logger
+	_ = zap.ReplaceGlobals(zapLog)
+
+	// logr
+	log := zapr.NewLogger(zapLog)
+
+	// Klog global logger
+	SetGlobalKlog(log, kubernetesVerbosityLevel)
+
+	// Logrus
+	logrus.SetReportCaller(true) // So Zap reports the right caller
+	logrus.SetOutput(io.Discard) // Prevent logrus from writing its logs
+
+	hook, err := zaphook.NewZapHook(zapLog)
+	if err != nil {
+		return logr.Logger{}, fmt.Errorf("failed to create logrus hook: %w", err)
+	}
+	logrus.AddHook(hook)
+
+	return log, nil
+}
+
+// SetGlobalKlog sets the global klog logger
+func SetGlobalKlog(logger logr.Logger, kubernetesVerbosityLevel string) error {
+	klog.ClearLogger()
+
+	klogFlagSet := &flag.FlagSet{}
+	klog.InitFlags(klogFlagSet)
+	if err := klogFlagSet.Set("v", kubernetesVerbosityLevel); err != nil {
+		return fmt.Errorf("failed to set klog verbosity level: %w", err)
+	}
+	if err := klogFlagSet.Parse([]string{}); err != nil {
+		return fmt.Errorf("failed to parse klog flags: %w", err)
+	}
+
+	klog.SetLogger(logger)
+
+	return nil
+}
+
+// GetLogLevel returns the zap log level and the kubernetes verbosity level
+func GetLogLevel() (zap.AtomicLevel, string, error) {
 	logLevel := os.Getenv("LOFT_LOG_LEVEL") // debug, info, warn, error, dpanic, panic, fatal
 	if logLevel == "" {
 		logLevel = "warn"
@@ -55,68 +121,30 @@ func NewLogger(component string) (logr.Logger, error) {
 		kubernetesVerbosityLevel = "1"
 	}
 
-	// -- Config --
-	config := zap.NewProductionConfig()
-
-	if development == "true" {
-		config = zap.NewDevelopmentConfig()
-		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	}
-
-	// -- Set log encoding --
-	config.Encoding = loftLogEncoding
-
-	// -- Set log caller format --
-	if logFullCallerPath == "true" || loftDebug == "true" {
-		config.EncoderConfig.EncodeCaller = func(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
-			enc.AppendString(strings.TrimPrefix(caller.String(), path))
-		}
-	} else {
-		config.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
-	}
-
-	// -- Set log level --
 	atomicLevel, err := zap.ParseAtomicLevel(logLevel)
-	if err != nil {
-		atomicLevel = zap.NewAtomicLevelAt(zap.WarnLevel)
+
+	return atomicLevel, kubernetesVerbosityLevel, err
+}
+
+// GetEncoding returns the log encoding; "console" or "json". (default: console)
+func GetEncoding() (string, error) {
+	loftLogEncoding := os.Getenv("LOFT_LOG_ENCODING") // json or console
+	if loftLogEncoding == "" {
+		loftLogEncoding = "console"
 	}
-	config.Level = atomicLevel
-
-	// -- Build config --
-	zapLog, err := config.Build(zap.Fields(zap.String("component", component)))
-	if err != nil {
-		return logr.Logger{}, fmt.Errorf("failed to build zap logger: %w", err)
-	}
-
-	// Zap global logger
-	_ = zap.ReplaceGlobals(zapLog)
-
-	// logr
-	log := zapr.NewLogger(zapLog)
-
-	// Klog global logger
-	klog.ClearLogger()
-
-	klogFlagSet := &flag.FlagSet{}
-	klog.InitFlags(klogFlagSet)
-	if err := klogFlagSet.Set("v", kubernetesVerbosityLevel); err != nil {
-		return logr.Logger{}, fmt.Errorf("failed to set klog verbosity level: %w", err)
-	}
-	if err := klogFlagSet.Parse([]string{}); err != nil {
-		return logr.Logger{}, fmt.Errorf("failed to parse klog flags: %w", err)
+	if loftLogEncoding != "json" && loftLogEncoding != "console" {
+		return "", fmt.Errorf("invalid log encoding: %s", loftLogEncoding)
 	}
 
-	klog.SetLogger(log)
+	return loftLogEncoding, nil
+}
 
-	// Logrus
-	logrus.SetReportCaller(true) // So Zap reports the right caller
-	logrus.SetOutput(io.Discard) // Prevent logrus from writing its logs
-
-	hook, err := zaphook.NewZapHook(zapLog)
-	if err != nil {
-		return logr.Logger{}, fmt.Errorf("failed to create logrus hook: %w", err)
+// LogFullCallerPath returns true if the full caller path should be logged
+func LogFullCallerPath() bool {
+	logFullCallerPath := os.Getenv("LOFT_LOG_FULL_CALLER_PATH") // true or false
+	if logFullCallerPath == "" {
+		logFullCallerPath = "false"
 	}
-	logrus.AddHook(hook)
 
-	return log, nil
+	return logFullCallerPath == "true"
 }
