@@ -48,7 +48,7 @@ func NewLogger(component string) (logr.Logger, error) {
 
 	if config.Encoding == "console" {
 		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-		config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2023-07-10 13:00:00")
+		config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")
 	}
 
 	// -- Set log caller format --
