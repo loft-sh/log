@@ -39,19 +39,23 @@ func NewLogger(component string) (logr.Logger, error) {
 
 	if os.Getenv("DEVELOPMENT") == "true" {
 		config = zap.NewDevelopmentConfig()
-		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	}
 
 	// -- Set log encoding --
 	config.Encoding = loftLogEncoding
+
+	config.DisableStacktrace = os.Getenv("LOFT_LOG_DISABLE_STACKTRACE") == "" || os.Getenv("LOFT_LOG_DISABLE_STACKTRACE") != "false"
+
+	if config.Encoding == "console" {
+		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2023-07-10 13:00:00")
+	}
 
 	// -- Set log caller format --
 	if logFullCallerPath {
 		config.EncoderConfig.EncodeCaller = func(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
 			enc.AppendString(strings.TrimPrefix(caller.String(), path))
 		}
-	} else {
-		config.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
 	}
 
 	// -- Set log level --
