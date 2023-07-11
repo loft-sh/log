@@ -111,7 +111,7 @@ func SetGlobalKlog(logger logr.Logger, kubernetesVerbosityLevel string) error {
 func GetLogLevel() (zap.AtomicLevel, string, error) {
 	logLevel := os.Getenv("LOFT_LOG_LEVEL") // debug, info, warn, error, dpanic, panic, fatal
 	if logLevel == "" {
-		logLevel = "warn"
+		logLevel = "info"
 	}
 
 	kubernetesVerbosityLevel := os.Getenv("KUBERNETES_VERBOSITY_LEVEL") // numerical values increasing: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
