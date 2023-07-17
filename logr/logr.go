@@ -1,6 +1,7 @@
 package logr
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -151,4 +152,17 @@ func LogFullCallerPath() bool {
 	}
 
 	return logFullCallerPath == "true"
+}
+
+// FromContextOrGlobal returns a logr.Logger from the given context or the global logger
+func FromContextOrGlobal(ctx context.Context) logr.Logger {
+	if ctx == nil {
+		return klog.Background()
+	}
+
+	if logger, err := logr.FromContext(ctx); err == nil {
+		return logger
+	}
+
+	return klog.Background()
 }
