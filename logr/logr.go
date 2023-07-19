@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	zaphook "github.com/Sytten/logrus-zap-hook"
@@ -72,7 +73,11 @@ func NewLogger(component string) (logr.Logger, error) {
 	_ = zap.ReplaceGlobals(zapLog)
 
 	// logr
-	log := zapr.NewLogger(zapLog)
+	kvl, err := strconv.Atoi(kubernetesVerbosityLevel)
+	if err != nil {
+		kvl = 0
+	}
+	log := zapr.NewLoggerWithOptions(zapLog, zapr.VerbosityLevel(kvl))
 
 	// Klog global logger
 	SetGlobalKlog(log, kubernetesVerbosityLevel)
@@ -103,7 +108,7 @@ func SetGlobalKlog(logger logr.Logger, kubernetesVerbosityLevel string) error {
 		return fmt.Errorf("failed to parse klog flags: %w", err)
 	}
 
-	klog.SetLogger(logger)
+	klog.SetLoggerWithOptions(logger, klog.ContextualLogger(true))
 
 	return nil
 }

@@ -91,6 +91,11 @@ type zapLogger struct {
 	// that explain why a call was invalid (for example,
 	// non-string key). This is enabled by default.
 	panicMessages bool
+
+	// verbosityLevel is the verbosity level of this logger.
+	// It is used to determine whether a log message is
+	// actually logged.
+	verbosityLevel int
 }
 
 const (
@@ -194,14 +199,14 @@ func (zl *zapLogger) Init(ri logr.RuntimeInfo) {
 
 // Zap levels are int8 - make sure we stay in bounds.  logr itself should
 // ensure we never get negative values.
-func toZapLevel(lvl int) zapcore.Level {
+func toZapLevel(lvl, logrVerbosityLevel int) zapcore.Level {
 	if lvl > 127 {
 		lvl = 127
 	}
 	// zap levels are inverted.
 	level := 0 - zapcore.Level(lvl)
 
-	if level < zapcore.DebugLevel {
+	if level < zapcore.DebugLevel && lvl <= logrVerbosityLevel {
 		return zapcore.DebugLevel
 	} else {
 		return level
@@ -209,11 +214,11 @@ func toZapLevel(lvl int) zapcore.Level {
 }
 
 func (zl zapLogger) Enabled(lvl int) bool {
-	return zl.l.Core().Enabled(toZapLevel(lvl))
+	return zl.l.Core().Enabled(toZapLevel(lvl, zl.verbosityLevel))
 }
 
 func (zl *zapLogger) Info(lvl int, msg string, keysAndVals ...interface{}) {
-	if checkedEntry := zl.l.Check(toZapLevel(lvl), msg); checkedEntry != nil {
+	if checkedEntry := zl.l.Check(toZapLevel(lvl, zl.verbosityLevel), msg); checkedEntry != nil {
 		checkedEntry.Write(zl.handleFields(lvl, keysAndVals)...)
 	}
 }
@@ -277,6 +282,16 @@ func NewLoggerWithOptions(l *zap.Logger, opts ...Option) logr.Logger {
 
 // Option is one additional parameter for NewLoggerWithOptions.
 type Option func(*zapLogger)
+
+// VerbosityLevel sets the verbosity level of the logger. It is used
+// to determine whether a log message is actually logged. The default
+// is 0 which means that no debug log messages are logged. A higher value
+// means that more log messages are logged.
+func VerbosityLevel(level int) Option {
+	return func(zl *zapLogger) {
+		zl.verbosityLevel = level
+	}
+}
 
 // LogInfoLevel controls whether a numeric log level is added to
 // Info log message. The empty string disables this, a non-empty
