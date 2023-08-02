@@ -13,7 +13,6 @@ import (
 type QuestionOptions struct {
 	Question               string
 	DefaultValue           string
-	DefaultValueSet        bool
 	ValidationRegexPattern string
 	ValidationMessage      string
 	ValidationFunc         func(value string) error
@@ -51,10 +50,15 @@ func (s *survey) Question(params *QuestionOptions) (string, error) {
 			sort.Strings(params.Options)
 		}
 
+		var defaultValue interface{}
+		if params.DefaultValue != "" {
+			defaultValue = params.DefaultValue
+		}
+
 		prompt = &surveypkg.Select{
 			Message: params.Question,
 			Options: params.Options,
-			Default: params.DefaultValue,
+			Default: defaultValue,
 		}
 	} else if params.IsPassword {
 		prompt = &surveypkg.Password{
