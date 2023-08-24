@@ -80,7 +80,10 @@ func NewLogger(component string) (logr.Logger, error) {
 	log := zapr.NewLoggerWithOptions(zapLog, zapr.VerbosityLevel(kvl))
 
 	// Klog global logger
-	SetGlobalKlog(log, kubernetesVerbosityLevel)
+	err = SetGlobalKlog(log, kubernetesVerbosityLevel)
+	if err != nil {
+		return logr.Logger{}, fmt.Errorf("failed to set global klog logger: %w", err)
+	}
 
 	// Logrus
 	logrus.SetReportCaller(true) // So Zap reports the right caller
