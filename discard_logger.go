@@ -128,7 +128,7 @@ func (f *discardLogger) Write(message []byte) (int, error) {
 	return len(message), nil
 }
 
-func (f *discardLogger) WriteLevel(level logrus.Level, message string) (int, error) {
+func (f *discardLogger) WriteLevel(level logrus.Level, message []byte) (int, error) {
 	return len(message), nil
 }
 

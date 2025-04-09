@@ -259,7 +259,7 @@ func (f *fileLogger) Write(message []byte) (int, error) {
 	return f.logger.Out.Write(message)
 }
 
-func (f *fileLogger) WriteLevel(level logrus.Level, message string) (int, error) {
+func (f *fileLogger) WriteLevel(level logrus.Level, message []byte) (int, error) {
 	f.m.Lock()
 	defer f.m.Unlock()
 
@@ -267,7 +267,7 @@ func (f *fileLogger) WriteLevel(level logrus.Level, message string) (int, error)
 		return 0, nil
 	}
 
-	return f.logger.Out.Write([]byte(stripEscapeSequences(message)))
+	return f.logger.Out.Write([]byte(stripEscapeSequences(string(message))))
 }
 
 func (f *fileLogger) WriteString(level logrus.Level, message string) {
