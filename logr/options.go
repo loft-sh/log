@@ -1,16 +1,20 @@
 package logr
 
-import "os"
+import (
+	"os"
+	"regexp"
+)
 
 type options struct {
-	componentName     string
-	logEncoding       string
-	logLevel          string
-	development       bool
-	disableStacktrace bool
-	globalKlog        bool
-	globalZap         bool
-	logFullCallerPath bool
+	componentName               string
+	logEncoding                 string
+	logLevel                    string
+	development                 bool
+	disableStacktrace           bool
+	globalKlog                  bool
+	globalZap                   bool
+	logFullCallerPath           bool
+	discardMessageMatchingRegex []*regexp.Regexp
 }
 
 type Option interface {
@@ -109,4 +113,18 @@ func (d disableStacktraceOption) apply(o *options) {
 
 func WithDisableStacktrace(disableStacktrace bool) Option {
 	return disableStacktraceOption(disableStacktrace)
+}
+
+type discardMessageMatchingRegexOption string
+
+func (d discardMessageMatchingRegexOption) apply(o *options) {
+	if len(o.discardMessageMatchingRegex) == 0 {
+		o.discardMessageMatchingRegex = []*regexp.Regexp{regexp.MustCompile(string(d))}
+	} else {
+		o.discardMessageMatchingRegex = append(o.discardMessageMatchingRegex, regexp.MustCompile(string(d)))
+	}
+}
+
+func WithDiscardMessageMatchingRegex(regex string) Option {
+	return discardMessageMatchingRegexOption(regex)
 }
