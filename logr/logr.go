@@ -87,7 +87,11 @@ func NewLoggerWithOptions(opts ...Option) (logr.Logger, error) {
 	if err != nil {
 		kvl = 0
 	}
-	log := zapr.NewLoggerWithOptions(zapLog, zapr.VerbosityLevel(kvl))
+	log := zapr.NewLoggerWithOptions(
+		zapLog,
+		zapr.VerbosityLevel(kvl),
+		zapr.DiscardLogMessagesMatching(options.discardMessageMatchingRegex),
+	)
 
 	// Klog global logger
 	if options.globalKlog {
